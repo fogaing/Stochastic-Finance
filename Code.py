@@ -40,16 +40,45 @@ def GMAB_put(t, S_t, T):
 
     return np.e**(-r*(T-t))*(tpx(T)/tpx(t))*(K_2(T) - BS_put(t, S_t, T, K_2(T), r, sigma) + BS_put(t, S_t, T, K_1(T), r, sigma))
 
+def GMDB_call(t, S_t, T):
+
+    result = GMAB_call(t, S_t, T)
+    for k in range(int(t)+1, T+1):
+        survival_k= (tpx(max(t, k-1)) - tpx(k))/tpx(t)
+        result += survival_k*(S0*np.e**(-r*(k-t) + 0.02*k) + np.e**(-r*(k-t))*BS_call(t, S_t, k, S0*np.e**(0.02*k), r, sigma))
+    
+    return result
+
+def GMDB_put(t, S_t, T):
+    
+    result = GMAB_put(t, S_t, T)
+    for k in range(int(t)+1, T+1):
+        survival_k= (tpx(max(t, k-1)) - tpx(k))/tpx(t)
+        result += survival_k*(S_t+ np.e**(-r*(k-t))*BS_put(t, S_t, k, S0*np.e**(0.02*k), r, sigma))
+    
+    return result
+
 GMABcall = np.array( [GMAB_call(0, S0, T) for T in maturities] )
 GMABput = np.array( [GMAB_put(0, S0, T) for T in maturities] )
 
-print("Maturity = 8, GMAB = ", GMABcall[7])
+GMDBcall = np.array( [GMDB_call(0, S0, T) for T in maturities] )
+GMDBput = np.array( [GMDB_put(0, S0, T) for T in maturities] )
+
+# print("Maturity = 8, GMAB = ", GMABcall[7])
+# print("Maturity = 8, GMDB = ", GMDBcall[7])
+
 plt.plot(maturities, GMABcall, label='GMAB using call options')
 plt.plot(maturities, GMABput, label='GMAB using put options')
-plt.xlabel('Time (years)')
+
+plt.plot(maturities, GMDBcall, label='GMDB using call options')
+plt.plot(maturities, GMDBput, label='GMDB using put options')
+
+plt.xlabel('Maturity (years)')
 plt.xticks(maturities)
 plt.ylabel('GMAB Value')
 plt.title('GMAB at time t=0 with maturities from 1 to 20 years')
 plt.legend()
 plt.grid(True)
+
+plt.savefig("GMAB.pdf")
 plt.show()
