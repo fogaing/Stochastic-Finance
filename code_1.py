@@ -58,8 +58,6 @@ def GMAB_put(t,T):
 GMABcall = np.array( [GMAB_call(0,T) for T in Time] )
 GMABput = np.array( [GMAB_put(0,T) for T in Time] )
 
-for i in range(len(GMABcall)):
-    print(GMABcall[i]-GMABput[i])
       
 """
 plt.plot(Time, GMABcall, label='GMAB using call options')

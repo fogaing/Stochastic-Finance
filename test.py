@@ -1,52 +1,251 @@
+import pandas as pd
 import numpy as np
-import copy as cp
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+from scipy.linalg import cholesky
+from math import comb
 
-def posDiff(x,y):
-    if  (x-y)<0:
-        return 0
-    return x-y
 
-S0 = 10
-T = 4
-K = 10
-r = 0.045  
-sigma = 0.16  # Volatility
-steps_per_year = 2
+""" ----------------------------------------- Question 1 -----------------------------------------------------------"""
+df = pd.read_excel('Data_project.xlsx', header=1)
 
-delta= 1/steps_per_year
+df['Date'] = pd.to_datetime(df['Date'])
 
-u = np.exp(( r - (sigma**2)/2 ) * delta + sigma*np.sqrt(delta))  # Up factor
-d = np.exp(( r - (sigma**2)/2 ) * delta - sigma*np.sqrt(delta))  # Up factor
-p = (np.exp(r * delta) - d) / (u - d)  # Probability of up movement
+# Define the 'Date' column as an index
+df.set_index('Date', inplace=True)
 
-# Initialize stock price tree and GMAB value tree
-stock_prices = np.zeros((T * steps_per_year + 1, T * steps_per_year + 1))
+"""
+plt.figure(figsize=(10, 6))
+plt.plot(df['Close'], label='Eurxx50', color='blue')
+plt.plot(df['Close.1'], label='Amex', color='red')
+plt.xlabel('Date')
+plt.ylabel('Valeur de l\'indice')
+plt.title('Indices boursiers')
+plt.legend()
+plt.grid(True)
+#plt.show()"""
 
-# Construct stock price tree
-for j in range(T * steps_per_year + 1):
-    for i in range(j + 1):
-        stock_prices[i, j] = S0 * (u ** (j - i)) * (d ** i)
 
-print(stock_prices)
 
-call_prices = np.zeros_like(stock_prices)
+indices_columns = ['Close', 'Close.1']
 
-# Backward induction to calculate GMAB values at earlier times
 
-# Calculate call and put prices at maturity
-call_prices[:, -1] = np.maximum(stock_prices[:, -1] - K, 0)
-#put_prices[:, -1] = np.maximum(K - stock_prices[:, -1], 0)
+df_returns = df[indices_columns] / df[indices_columns].shift(1)
 
-for j in range(T * steps_per_year - 1, -1, -1):
-    for i in range(j + 1):
-        # GMAB_values calculation (assuming r and delta are defined)
+"""Plot a graph of daily returns
+df_returns.plot(figsize=(10, 6))
+plt.xlabel('Date')
+plt.ylabel('Daily Returns')
+plt.title('Daily Returns of Indices')
+plt.grid(True)
+#plt.show()
+"""
+#df_returns[indices_columns] = df_returns[indices_columns].fillna(0)
+
+
+averages = df_returns.mean()
+
+standard_deviations = df_returns.std()
+
+correlation = df_returns.corr()
+
+print("averages",averages)
+print("\n standar deviation",standard_deviations)
+print("\n correlation",correlation)
+
+
+days_per_year = 252  # For a typical trading year
+
+annual_standard_deviations = standard_deviations * np.sqrt(days_per_year)
+
+annual_returns = df_returns.mean() * days_per_year
+
+covariance_matrix = df_returns.cov() * days_per_year
+
+print("variance :\n", annual_standard_deviations)
+print("\nRendements annuels :\n", annual_returns)
+print("\nMatrice de covariance :\n", covariance_matrix)
+
+
+
+""" ----------------------------------------- Question 2 -----------------------------------------------------------"""
+
+def V_t(r,t,T,S0,sigma11,sigma21,sigma22):
+    S1_t = S0
+    S2_t = S0
+    mu = -0.5*(sigma22**2 + (sigma21-sigma11)**2)*(T-t)
+    
+    v = np.sqrt((sigma22**2 + (sigma21 - sigma11)**2)*(T-t))
+
+    d_2 = (np.log(S1_t/S2_t)-mu)/v
+    
+    d_1 = d_2 - v
+
+    return S1_t + S2_t*norm.cdf(-d_1) - S1_t*norm.cdf(-d_2)
+
+SIGMA = cholesky(covariance_matrix)
+SIGMA = SIGMA.T
+
+#Choleski matrix
+print("\ncholeski matrix : ")
+print(SIGMA)
+
+sigma11 = SIGMA[0][0]
+sigma21 = SIGMA[1][0]
+sigma22 = SIGMA[1][1]
+
+std_1 = standard_deviations[0]
+std_2 = standard_deviations[1]
+maturities = np.array([i for i in range(1, 21)])  # Time range
+
+vt = []
+S0 = 15000
+r=0.0375
+
+for T in maturities :
+    vt.append(V_t(r,0,T,S0,sigma11,sigma21,sigma22))
+
+"""plt.plot(maturities,vt)
+plt.xlabel('Maturity (T)')
+plt.ylabel('Option Value')
+plt.xticks(maturities)
+plt.title('Maximum Return Insurance Option Value vs. Maturity')
+plt.grid(True)
+plt.savefig("Return Insurance.png")
+plt.show()"""
+
+
+"--------------------------------------------------Question 3 --------------------------------------------------------"
+
+def simulate_asset_paths(r,S0, chol, T, m, N):
+    dt = T / m
+    S1 = np.zeros((m+1, N))
+    S2 = np.zeros((m+1, N))
+    S1[0,:] = S0
+    S2[0,:] = S0
+
+    for k in range(N):  # Loop over each simulation
+    
+        for j in range(1, m+1):
+            epsilon = np.random.normal(size=2) # array of size 2 that contains our two epsilon
+            dS1 = S1[j-1,k] * ( r*dt + chol @ (np.sqrt(dt)*epsilon )  )[0]
+            dS2 = S2[j-1,k] * ( r*dt + chol @ (np.sqrt(dt)*epsilon )  )[1]
+            S1[j,k] = S1[j-1,k] + dS1
+            S2[j,k] = S2[j-1,k] + dS2
+    
+    option_payoffs = np.maximum(S1[-1] - S2[-1], 0)
+    
+    discounted_payoffs = np.exp(-r * T) * option_payoffs
+    
+    option_price = np.mean(discounted_payoffs)
+    
+    return S0 + option_price
+
+# Parameters
+r = 0.0375  # Interest rate
+m = 25  # Number of steps
+N = 10000  # Number of simulations
+
+S0 = 15000
+option_prices = []
+
+"""
+for T in maturities :
+    option_prices.append( simulate_asset_paths(r,S0,SIGMA,T,m,N) )
+
+# Plot option prices
+
+plt.figure(figsize=(10, 6))
+plt.scatter(maturities, option_prices, marker='o', label='Option Prices')
+
+plt.xlabel('Maturity (T)')
+plt.ylabel('Option Price')
+plt.xticks(maturities)
+plt.title('Option Price vs. Maturity (m=25)')
+plt.grid(True)
+plt.savefig("monte_carlo_25.png")
+plt.show()
+"""
+
+#----------------------------------- Checking the convergence -----------------------------------------------
+m_values = [10, 25, 50, 75, 100]
+
+norm_differences = []  # Pour stocker les normes de différence pour chaque valeur de m
+
+"""for m in m_values:
+   
+    prices_simulated = [simulate_asset_paths(r, S0, SIGMA, T, m, N) for T in maturities]
+
+    # Difference between the option prices generated by each method
+    price_difference = np.array(vt) - np.array(prices_simulated)
+
+    # Norm of the difference
+    norm_difference = np.linalg.norm(price_difference)
+    
+    norm_differences.append(norm_difference)
+
+# Plot the norm of the difference with respect to the value of m
+plt.figure(figsize=(10, 6))
+plt.plot(m_values, norm_differences, marker='o')
+plt.xlabel('Number of Steps (m)')
+plt.ylabel('Norm of Price Difference')
+plt.title('Convergence Comparison')
+plt.xticks(m_values)
+#plt.savefig("Convergence.png")
+plt.grid(True)
+plt.show()
+"""
+"--------------------------------------------------Question 4 --------------------------------------------------------"
+
+def tpx(t): return np.exp(-0.002*t - 0.00025*t**2)
+
+def simulate_asset_paths_with_death(r,S0, chol, T, m, N):
+    dt = T / m
+    S1 = np.zeros((m+1, N))
+    S2 = np.zeros((m+1, N))
+    S1[0,:] = S0
+    S2[0,:] = S0
+
+    for k in range(N):  # Loop over each simulation
+    
+        for j in range(1, m+1):
+            epsilon = np.random.normal(size=2) # array of size 2 that contains our two epsilon
+            dS1 = S1[j-1,k] * ( r*dt + chol @ (np.sqrt(dt)*epsilon )  )[0]
+            dS2 = S2[j-1,k] * ( r*dt + chol @ (np.sqrt(dt)*epsilon )  )[1]
+            S1[j,k] = S1[j-1,k] + dS1
+            S2[j,k] = S2[j-1,k] + dS2
+    
+    option_payoffs = np.maximum(S1[-1] - S2[-1], 0)
+    
+    #discounted_payoffs = np.exp(-r * T) * option_payoffs
         
-        #stock_prices[i, j] = np.exp(-r * dt) * (p * call_prices[i, j + 1] + (1 - p) * call_prices[i + 1, j + 1])
+    option_price = np.mean(option_payoffs)
 
-        call_prices[i, j] = np.exp(-r * delta) * (p * call_prices[i, j + 1] + (1 - p) * call_prices[i + 1, j + 1])
+    # value in case of death option_price
+    value = (1 - tpx(50+T-1))*np.exp(r*T)*(S0 + option_price)
+    
+    return np.max(value, np.exp(r*T)*S0 )
+
+# Parameters
+r = 0.0375  # Interest rate
+m = 10  # Number of steps
+N = 10000  # Number of simulations
+
+S0 = 15000
+option_prices = []
 
 
-print("*************************")
-print("*************************")
-print(call_prices)
+for T in maturities :
+    option_prices.append( simulate_asset_paths(r,S0,SIGMA,T,m,N) )
 
+# Plot option prices
+
+plt.figure(figsize=(10, 6))
+plt.scatter(maturities, option_prices, marker='o', label='Option Prices')
+
+plt.xlabel('Maturity (T)')
+plt.ylabel('Option Price')
+plt.xticks(maturities)
+plt.title('Option Price vs. Maturity (m=25)')
+plt.grid(True)
+plt.show()
