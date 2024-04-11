@@ -58,27 +58,27 @@ def GMDB_put(t, S_t, T):
     
     return result
 
-GMABcall = np.array( [GMAB_call(0, S0, T) for T in maturities] )
+# GMABcall = np.array( [GMAB_call(0, S0, T) for T in maturities] )
 GMABput = np.array( [GMAB_put(0, S0, T) for T in maturities] )
 
 GMDBcall = np.array( [GMDB_call(0, S0, T) for T in maturities] )
 GMDBput = np.array( [GMDB_put(0, S0, T) for T in maturities] )
 
 # print("Maturity = 8, GMAB = ", GMABcall[7])
-# print("Maturity = 8, GMDB = ", GMDBcall[7])
+print("Maturity = 8, GMDB = ", GMDBcall[7])
 
-plt.plot(maturities, GMABcall, label='GMAB using call options')
-plt.plot(maturities, GMABput, label='GMAB using put options')
+# plt.plot(maturities, GMABcall, label='GMAB using call options')
+plt.plot(maturities, GMABput, label='GMAB')
 
 plt.plot(maturities, GMDBcall, label='GMDB using call options')
 plt.plot(maturities, GMDBput, label='GMDB using put options')
 
 plt.xlabel('Maturity (years)')
 plt.xticks(maturities)
-plt.ylabel('GMAB Value')
-plt.title('GMAB at time t=0 with maturities from 1 to 20 years')
+plt.ylabel('Value [€]')
+plt.title('GMDB vs GMAB at time t=0 with maturities from 1 to 20 years')
 plt.legend()
 plt.grid(True)
 
-plt.savefig("GMAB.pdf")
+plt.savefig("GMDB.pdf")
 plt.show()
